@@ -21,8 +21,11 @@ multiply_matrices_general <- function(A, B) {
 # A function to create the penalty matrix P
 P_gen <- function(D_train_, dif_order_,eta){
 
-  P_train_ <- crossprod(diff(diag(NCOL(D_train_)),differences = dif_order_))
-
+  if(dif_order_>0){
+      P_train_ <- crossprod(diff(diag(NCOL(D_train_)),differences = dif_order_))
+  } else {
+      P_train_ <- diag(NCOL(D_train))
+  }
   if(dif_order_==1){
     if(nrow(P_train_)%%2==0){
       middle_ <- trunc(nrow(P_train_)/2)+1
@@ -49,6 +52,7 @@ P_gen <- function(D_train_, dif_order_,eta){
     }
     P_train_[middle_,middle_] = P_train_[middle_,middle_] + eta
 
+  } else if(dif_order_==0){
   } else {
     stop("Insert a lower order for the difference matrix")
 
@@ -59,7 +63,11 @@ P_gen <- function(D_train_, dif_order_,eta){
 
 # Creating the D (difference matrix)
 D_gen <- function(p, n_dif){
-  return(diff(diag(p),diff = n_dif))
+  if(n_dif>0){
+    return(diff(diag(p),diff = n_dif))
+  } else {
+    return(diag(p))
+  }
 }
 
 # In case where \mathbf{u} ~ MVN(Q^-1 %*% b, Q^-1)

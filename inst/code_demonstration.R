@@ -86,8 +86,8 @@ D_gen <- function(p, n_dif){
 # ==========================================
 
 # Getting simulations
-sim_train <- mlbench.friedman1(n = n_,sd = sd_)  |> as.data.frame()
-sim_test <- mlbench.friedman1(n = n_,sd = sd_)  |> as.data.frame()
+sim_train <- mlbench::mlbench.friedman1(n = n_,sd = sd_)  |> as.data.frame()
+sim_test <- mlbench::mlbench.friedman1(n = n_,sd = sd_)  |> as.data.frame()
 
 # Getting the x.scale()
 x_train <- sim_train[,1:10,drop = FALSE]
@@ -129,7 +129,7 @@ for(i in 1:ncol(x_train_scale)){
 
 
 p_var_basis <- 3 # Getting the Basis for X.3 for example
-p_var_split <- 10 # Getting which gonna be the split rule for X3
+p_var_split <- 7 # Getting which gonna be the split rule for X3
 
 # Generating parameters for the spline basis matrix
 nIknots <- 2
@@ -150,6 +150,12 @@ B_train <- as.matrix(splines::spline.des(x = x_train_scale[,p_var_basis, drop = 
                                         knots = new_knots[,p_var_basis],
                                         ord = ord_,
                                         derivs = 0*x_train_scale[,p_var_basis, drop = FALSE],outer.ok = TRUE)$design)
+# Quick glance over the basis functions
+plot(NA,ylim = range(B_train),xlim = range(x_train_scale), ylab = '',main = 'Basis Functions')
+# Seeing the basis
+for(i in 1:ncol(B_train)){
+  points(x_train_scale[,p_var_basis],B_train[,i], col = i,pch=20)
+}
 
 # Getting left and right node
 cutpoint <- 50 # choosing to split in the middle for example can be any value from 0 to 100
@@ -157,13 +163,13 @@ cutpoint_value <- xcut_m[cutpoint,p_var_split]
 left_index <- which(x_train_scale[,p_var_split] <= cutpoint_value)
 right_index <- which(x_train_scale[,p_var_split] > cutpoint_value)
 curr_index <- 1:nrow(x_train_scale)
-# Scaling y
+# Scaling y and setting other parameters
 y_scale <- normalize_bart(y = y_train,a = min(y_train),b = max(y_train))
-n_tree <- 10; k <- 2;
+n_tree <- 1; k <- 2;
 tau_beta <- 4*(k^2)*n_tree
 tau <- (sd_^(-2))*diff(range(y_train))^2 # Getting the true tau value in the scaled version
-dif_order_ <- 1
 
+dif_order_ <- 1
 
 # Creating a function to calculate the loglike-lihood for a specific subset
 logLikelihood_mvn <- function(y_scale,
@@ -192,6 +198,8 @@ logLikelihood_mvn <- function(y_scale,
 
 }
 
+
+# Calculating the loglikelihood associated with each move
 g_node_ <- logLikelihood_mvn(y_scale = y_scale,B_train = B_train,curr_index = curr_index,
                   tau_beta = tau_beta,tau = tau,dif_order = dif_order_)
 left_child_ <- logLikelihood_mvn(y_scale = y_scale,B_train = B_train,curr_index = left_index,

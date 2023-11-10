@@ -168,9 +168,9 @@ grow <- function(tree,
 
     # Sample a split var
     # ===== Uncomment this line below after ========
-    # p_var <- sample(1:NCOL(data$x_train),size = 1)
+    p_var <- sample(1:NCOL(data$x_train),size = 1)
     # ==============================================
-    p_var <- 7
+    # p_var <- 7
 
     # Selecting an available cutpoint from this terminal node
     valid_range_grow <- range(data$x_train[g_node$train_index,p_var])
@@ -237,18 +237,18 @@ grow <- function(tree,
   # Calculating loglikelihood for the grown node, the left and the right node
 
   g_loglike <- nodeLogLike(curr_part_res = curr_part_res,
-                           ancestors = 10,
+                           ancestors = g_node$j,
                            index_node = g_node$train_index,
                            data = data)
 
 
   left_loglike <-  nodeLogLike(curr_part_res = curr_part_res,
-                               ancestors = 3,
+                               ancestors = g_node$j,
                                index_node = left_index,
                                data = data)
 
   right_loglike <-  nodeLogLike(curr_part_res = curr_part_res,
-                                ancestors = 3,
+                                ancestors = g_node$j,
                                 index_node = right_index,
                                 data = data)
 
@@ -295,6 +295,7 @@ grow <- function(tree,
                           betas_vec = rep(0,ncol(data$D_train)))
 
         right_node <- list(node_number = max_index+2,
+                           j = g_node$j,
                            isRoot = FALSE,
                            train_index = right_index,
                            test_index = right_test_index,
@@ -328,6 +329,7 @@ grow <- function(tree,
 
       left_node <- list(node_number = max_index+1,
                         isRoot = FALSE,
+                        j = g_node$j,
                         train_index = left_index,
                         test_index = left_test_index,
                         depth_node = g_node$depth_node+1,
@@ -342,6 +344,7 @@ grow <- function(tree,
 
       right_node <- list(node_number = max_index+2,
                          isRoot = FALSE,
+                         j = g_node$j,
                          train_index = right_index,
                          test_index = right_test_index,
                          depth_node = g_node$depth_node+1,
@@ -411,17 +414,17 @@ prune <- function(tree,
   p_loglike <- nodeLogLike(curr_part_res = curr_part_res,
                            index_node = p_node$train_index,
                            data = data,
-                           ancestors = unique(p_node$ancestors))
+                           ancestors = p_node$j)
 
 
   p_left_loglike <-  nodeLogLike(curr_part_res = curr_part_res,
                                  index_node = children_left_index,
-                                 ancestors = unique(children_left_ancestors),
+                                 ancestors = p_node$j,
                                  data = data)
 
   p_right_loglike <-  nodeLogLike(curr_part_res = curr_part_res,
                                   index_node = children_right_index,
-                                  ancestors = unique(children_right_ancestors),
+                                  ancestors = p_node$j,
                                   data = data)
 
   # Calculating the prior
@@ -465,7 +468,7 @@ change_stump <- function(tree = tree,
   c_node <- tree$node0
 
   # Proposing a change to the stump
-  change_candidates <- which(!(1:NCOL(data$x_train) %in% c_node$ancestors))
+  change_candidates <- which(!(1:NCOL(data$x_train) %in% c_node$j))
 
   # In case there's other proposal trees (only for 1-d case)
   if(length(change_candidates)==0){
@@ -486,7 +489,7 @@ change_stump <- function(tree = tree,
                            data = data)
 
   # Modifying the node0
-  tree$node0$ancestors <- new_ancestor
+  tree$node0$j <- new_ancestor
 
   # Returning the new tree
   return(tree)
@@ -581,13 +584,13 @@ change <- function(tree,
   # Calculating loglikelihood for the new changed nodes and the old ones
   c_loglike_left <- nodeLogLike(curr_part_res = curr_part_res,
                                 index_node = tree[[c_node$left]]$train_index,
-                                ancestors = unique(tree[[c_node$left]]$ancestors),
+                                ancestors = c_node$j,
                                 data = data)
 
 
   c_loglike_right <-  nodeLogLike(curr_part_res = curr_part_res,
                                   index_node = tree[[c_node$right]]$train_index,
-                                  ancestors = unique(tree[[c_node$right]]$ancestors),
+                                  ancestors =  c_node$j,
                                   data = data)
 
   # Calculating a new ancestors left and right
@@ -611,12 +614,12 @@ change <- function(tree,
 
   new_c_loglike_left <-  nodeLogLike(curr_part_res = curr_part_res,
                                      index_node = left_index,
-                                     ancestors = unique(new_left_ancestors),
+                                     ancestors = c_node$j,
                                      data = data)
 
   new_c_loglike_right <-  nodeLogLike(curr_part_res = curr_part_res,
                                       index_node = right_index,
-                                      ancestors = unique(new_right_ancestors),
+                                      ancestors =  c_node$j,
                                       data = data)
 
 
@@ -670,7 +673,7 @@ updateBetas <- function(tree,
 
     # Select the current terminal node
     cu_t <- tree[[t_nodes_names[i]]]
-
+    cu_t$ancestors <- cu_t$j
     res_leaf <- matrix(curr_part_res[cu_t$train_index], ncol=1)
 
     # Creatinga  vector of zeros for betas_vec
@@ -859,7 +862,9 @@ getPredictions <- function(tree,
 
     leaf_train_index <- tree[[t_nodes[i]]]$train_index
     leaf_test_index <- tree[[t_nodes[i]]]$test_index
-    leaf_ancestors <- unique(tree[[t_nodes[[i]]]]$ancestors) # recall the unique() argument here
+    # leaf_ancestors <- unique(tree[[t_nodes[[i]]]]$ancestors) # recall the unique() argument here
+    leaf_ancestors <- unique(tree[[t_nodes[[i]]]]$j) # recall the unique() argument here
+
     leaf_basis_subindex <- data$basis_subindex[leaf_ancestors]
 
     # Test unit

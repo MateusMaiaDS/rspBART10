@@ -466,7 +466,7 @@ rspBART <- function(x_train,
   # Creating the penalty matrix
 
   all_P <- replicate(NCOL(x_train_scale),
-                     P_gen(D_train_ = B_train_obj[[1]],dif_order_ = dif_order,tau_mu_ = 1,
+                     P_gen(D_train_ = B_train_obj[[1]],dif_order_ = dif_order,
                            eta = 1),simplify = FALSE)
   if(interaction_term){
     # Adding the penalty term for the interactions
@@ -566,15 +566,16 @@ rspBART <- function(x_train,
 
       # Sample a verb
       verb <- sample(c("grow","prune", "change"), prob = c(0.3,0.3,0.4),size = 1)
+      verb <- sample(c("grow","prune"),size = 1)
 
-      # Forcing to grow when only have a stump
-      if(length(forest[[t]])==1){
-        if(!data$all_var){
-          verb <- sample(c("grow","change"),size = 1)
-        } else {
-          verb <- "grow"
-        }
-      }
+      # # Forcing to grow when only have a stump
+      # if(length(forest[[t]])==1){
+      #   if(!data$all_var){
+      #     verb <- sample(c("grow","change"),size = 1)
+      #   } else {
+      #     verb <- "grow"
+      #   }
+      # }
 
 
       # Sampling a verb
@@ -613,7 +614,7 @@ rspBART <- function(x_train,
       # ==========================
 
       if(plot_preview){
-        choose_dimension <- 6
+        choose_dimension <- 1
         if(t==1){
           plot(x_train_scale[,choose_dimension],tree_predictions$y_train_hat[,choose_dimension], pch = 20, main = paste0("X",choose_dimension," partial pred"),ylim = range(y_scale),
                col = ggplot2::alpha("black",0.2))
@@ -623,8 +624,8 @@ rspBART <- function(x_train,
       }
 
       if(plot_preview){
-        # points(x_train_scale[,choose_dimension],x1_pred, pch=20, col = "blue")
-        plot(10*(sin(x_train_scale[,1]*x_train_scale[,2])),tree_predictions$y_hat_test[,11], pch=20, col = "blue")
+        points(x_train_scale[,choose_dimension],x1_pred, pch=20, col = "blue")
+        # plot(10*(sin(x_train_scale[,1]*x_train_scale[,2])),tree_predictions$y_hat_test[,11], pch=20, col = "blue")
         x1_pred <- numeric(nrow(x_train))
       }
 
