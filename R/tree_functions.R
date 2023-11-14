@@ -5,45 +5,27 @@ stump <- function(data,
   # Creating the base node
   node <- list()
 
-  if(!data$all_var){
-      node[["node0"]] <- list(
-        # Creating the node number
-        node_number = 0,
-        j = j,
-        isRoot = TRUE,
-        # Creating a vector with the tranining index
-        train_index = 1:nrow(data$x_train),
-        test_index = 1:nrow(data$x_test),
-        depth_node = 0,
-        node_var = NA,
-        node_cutpoint_index = NA,
-        left = NA,
-        right = NA,
-        parent_node = NA,
-        ancestors = sample(1:ncol(data$x_train),size = 1),
-        terminal = TRUE,
-        betas_vec = NULL
-      )
-  } else {
-    node[["node0"]] <- list(
-      # Creating the node number
-      node_number = 0,
-      j = j,
-      isRoot = TRUE,
-      # Creating a vector with the tranining index
-      train_index = 1:nrow(data$x_train),
-      test_index = 1:nrow(data$x_test),
-      depth_node = 0,
-      node_var = NA,
-      node_cutpoint_index = NA,
-      left = NA,
-      right = NA,
-      parent_node = NA,
-      ancestors = 1:(ncol(data$x_train)+length(data$interaction_list)),
-      terminal = TRUE,
-      betas_vec = NULL
-    )
-  }
+
+  node[["node0"]] <- list(
+    # Creating the node number
+    node_number = 0,
+    j = j,
+    inter = NULL,
+    isRoot = TRUE,
+    # Creating a vector with the tranining index
+    train_index = 1:nrow(data$x_train),
+    test_index = 1:nrow(data$x_test),
+    depth_node = 0,
+    node_var = NA,
+    node_cutpoint_index = NA,
+    left = NA,
+    right = NA,
+    parent_node = NA,
+    ancestors = 1:(ncol(data$x_train)+length(data$interaction_list)),
+    terminal = TRUE,
+    betas_vec = NULL
+  )
+
   # Returning the node
   return(node)
 
@@ -90,7 +72,7 @@ get_max_node <- function(tree){
 
 # A function to calculate the loglikelihood
 nodeLogLike <- function(curr_part_res,
-                        ancestors,
+                        j_,
                         index_node,
                         data){
 
@@ -99,10 +81,10 @@ nodeLogLike <- function(curr_part_res,
 
   # Getting the number of observationsin the terminal node
   n_leaf <- length(index_node)
-  d_basis <- length(ancestors)
+  d_basis <- length(j_)
   ones <- matrix(1,nrow = n_leaf)
   # Getting the index of all covariates for each basis from each ancestors
-  D_subset_index <- unlist(data$basis_subindex[ancestors])
+  D_subset_index <- unlist(data$basis_subindex[j_])
 
 
   # Getting the p_{tell} i.e: number of betas of the current terminal node
@@ -110,7 +92,7 @@ nodeLogLike <- function(curr_part_res,
   D_leaf <- data$D_train[index_node,D_subset_index, drop = FALSE]
 
   if(NCOL(D_leaf)==0){
-    stop(" Node Log-likelihood: No ancestors")
+    stop(" Node Log-likelihood: No variables")
   }
 
   # Using the Andrew's approach I would have
@@ -125,7 +107,7 @@ nodeLogLike <- function(curr_part_res,
       cov_aux <- diag(x = (data$tau^(-1)),nrow = n_leaf) + D_leaf%*%tcrossprod(diag_tau_beta_inv,D_leaf)
   } else {
       P_aux <- data$P[D_subset_index,D_subset_index]
-      for(jj in 1:length(ancestors)){
+      for(jj in 1:length(j_)){
         P_aux[data$basis_subindex[[jj]],data$basis_subindex[[jj]]] <- data$tau_beta[jj]*data$P[data$basis_subindex[[jj]],data$basis_subindex[[jj]]]
       }
       cov_aux <- diag(x = (data$tau^(-1)),nrow = n_leaf) + D_leaf%*%solve(P_aux,t(D_leaf))
@@ -235,20 +217,27 @@ grow <- function(tree,
   }
 
   # Calculating loglikelihood for the grown node, the left and the right node
+  # Recover the g_node index
+
+  if(!is.null(g_node$inter)){
+    node_index_var <- c(g_node$j,which( names(data$basis_subindex) %in% paste0(g_node$j,sort(g_node$inter))))
+  } else {
+    node_index_var <- g_node$j
+  }
 
   g_loglike <- nodeLogLike(curr_part_res = curr_part_res,
-                           ancestors = g_node$j,
+                           j_ = node_index_var,
                            index_node = g_node$train_index,
                            data = data)
 
 
   left_loglike <-  nodeLogLike(curr_part_res = curr_part_res,
-                               ancestors = g_node$j,
+                               j_ = node_index_var,
                                index_node = left_index,
                                data = data)
 
   right_loglike <-  nodeLogLike(curr_part_res = curr_part_res,
-                                ancestors = g_node$j,
+                                j_ = node_index_var,
                                 index_node = right_index,
                                 data = data)
 
@@ -277,10 +266,9 @@ grow <- function(tree,
   if(stats::runif(n = 1)<acceptance){
 
 
-    # Verifying if uses all variables or not
-    if(!data$all_var){
         left_node <- list(node_number = max_index+1,
                           j = g_node$j,
+                          inter = g_node$inter,
                           isRoot = FALSE,
                           train_index = left_index,
                           test_index = left_test_index,
@@ -296,6 +284,7 @@ grow <- function(tree,
 
         right_node <- list(node_number = max_index+2,
                            j = g_node$j,
+                           inter = g_node$inter,
                            isRoot = FALSE,
                            train_index = right_index,
                            test_index = right_test_index,
@@ -308,55 +297,6 @@ grow <- function(tree,
                            ancestors = c(g_node$ancestors,p_var),
                            terminal = TRUE,
                            betas_vec = rep(0,ncol(data$D_train)))
-    } else {
-
-      # In case there's INTERACTION TERM
-      if(data$interaction_term){
-
-        if(!identical(g_node$ancestors,1:(NCOL(data$x_train)+length(data$interaction_list)))){
-          stop("No match in ancestors")
-        }
-
-        # Correcting the verification in the grow
-      } else {
-
-        # Verification
-        if(!identical(g_node$ancestors,1:NCOL(data$x_train))){
-          stop("No match in ancestors")
-        }
-
-      }
-
-      left_node <- list(node_number = max_index+1,
-                        isRoot = FALSE,
-                        j = g_node$j,
-                        train_index = left_index,
-                        test_index = left_test_index,
-                        depth_node = g_node$depth_node+1,
-                        node_var = p_var,
-                        node_cutpoint_index = sample_cutpoint,
-                        left = NA,
-                        right = NA,
-                        parent_node = g_node_name,
-                        ancestors = g_node$ancestors,
-                        terminal = TRUE,
-                        betas_vec = rep(0,ncol(data$D_train)))
-
-      right_node <- list(node_number = max_index+2,
-                         isRoot = FALSE,
-                         j = g_node$j,
-                         train_index = right_index,
-                         test_index = right_test_index,
-                         depth_node = g_node$depth_node+1,
-                         node_var = p_var,
-                         node_cutpoint_index = sample_cutpoint,
-                         left = NA,
-                         right = NA,
-                         parent_node = g_node_name,
-                         ancestors = g_node$ancestors,
-                         terminal = TRUE,
-                         betas_vec = rep(0,ncol(data$D_train)))
-    }
 
     # Modifying the current node
     tree[[g_node_name]]$left = paste0("node",max_index+1)
@@ -377,6 +317,135 @@ grow <- function(tree,
   return(tree)
 }
 
+
+# Adding interaction
+add_interaction <- function(tree,
+                 curr_part_res,
+                 data){
+
+  # Getting the maximum index number
+  max_index <- get_max_node(tree)
+
+  # Sampling a terminal node
+  terminal_nodes <- get_terminals(tree)
+  n_t_nodes <- length(terminal_nodes)
+  nog_nodes <- get_nogs(tree)
+  n_nog_nodes <- length(nog_nodes)
+  g_node_name <- sample(terminal_nodes,size = 1)
+  g_node <- tree[[g_node_name]]
+
+
+  valid_terminal_node <- TRUE
+  valid_count <- 0
+
+  interaction_candidates <- (1:NCOL(data$x_train))[-g_node$j]
+
+  while(length(interaction_candidates)!=0){
+
+      # Sample a split var
+      # ===== Uncomment this line below after ========
+      p_var <- sample(interaction_candidates,size = 1)
+      # ==============================================
+      # Getting the interaction name
+      int_name_ <- paste0(sort(c(p_var,g_node$j)),collapse = '')
+
+      if(p_var %in% g_node$inter){
+        index_candidate <- which(interaction_candidates %in% p_var)
+        interaction_candidates <- interaction_candidates[-index_candidate]
+      }
+
+  }
+
+  # All interactions were already included.
+  if(length(interaction_candidates)==0){
+    return(tree)
+  }
+
+  # Calculating loglikelihood for the grown node, the left and the right node
+
+  g_loglike <- nodeLogLike(curr_part_res = curr_part_res,
+                           j_= g_node$j, # Here j_ refers to the main effect from that tree
+                           index_node = g_node$train_index,
+                           data = data)
+
+  # Adding the interaction term on the list
+  new_j <- c(which(names(data$basis_subindex) %in% g_node$j),which(names(data$basis_subindex) %in% int_name_))
+
+  new_loglike <-  nodeLogLike(curr_part_res = curr_part_res,
+                               j_ = new_j,
+                               index_node = g_node$train_index,
+                               data = data)
+
+
+
+  # Calculating the acceptance probability
+  acceptance <- exp(-g_loglike+new_loglike)
+  # acceptance_grid[kk] <- acceptance
+
+
+
+  # par(mfrow=c(1,2))
+  # plot(data$xcut_m[,2],(acceptance_grid), main = "Acceptance to split on X2", xlab = "X2", ylab = "Prob. Acceptance")
+
+  if(data$stump) {
+    acceptance <- acceptance*(-1)
+  }
+
+  # Getting the training the left and the right index for the the grown node
+  if(stats::runif(n = 1)<acceptance){
+
+
+      left_node <- list(node_number = max_index+1,
+                        isRoot = FALSE,
+                        j = g_node$j,
+                        inter = sort(unique(c(g_node$inter,p_var))),
+                        train_index = left_index,
+                        test_index = left_test_index,
+                        depth_node = g_node$depth_node+1,
+                        node_var = p_var,
+                        node_cutpoint_index = sample_cutpoint,
+                        left = NA,
+                        right = NA,
+                        parent_node = g_node_name,
+                        ancestors = g_node$ancestors,
+                        terminal = TRUE,
+                        betas_vec = rep(0,ncol(data$D_train)))
+
+      right_node <- list(node_number = max_index+2,
+                         isRoot = FALSE,
+                         j = g_node$j,
+                         inter = sort(unique(c(g_node$inter,p_var))),
+                         train_index = right_index,
+                         test_index = right_test_index,
+                         depth_node = g_node$depth_node+1,
+                         node_var = p_var,
+                         node_cutpoint_index = sample_cutpoint,
+                         left = NA,
+                         right = NA,
+                         parent_node = g_node_name,
+                         ancestors = g_node$ancestors,
+                         terminal = TRUE,
+                         betas_vec = rep(0,ncol(data$D_train)))
+
+
+    # Modifying the current node
+    tree[[g_node_name]]$left = paste0("node",max_index+1)
+    tree[[g_node_name]]$right = paste0("node",max_index+2)
+    tree[[g_node_name]]$terminal = FALSE
+
+    tree[[paste0("node",max_index+1)]] <- left_node
+    tree[[paste0("node",max_index+2)]] <- right_node
+
+
+  } else {
+
+    # Do nothing
+
+  }
+
+  # Return the new tree
+  return(tree)
+}
 
 
 # Pruning a tree
@@ -411,20 +480,26 @@ prune <- function(tree,
 
   # Calculating loglikelihood for the grown node, the left and the right node
 
+  if(!is.null(p_node$inter)){
+    node_index_var <- c(p_node$j,which( names(data$basis_subindex) %in% paste0(p_node$j,sort(p_node$inter))))
+  } else {
+    node_index_var <- p_node$j
+  }
+
   p_loglike <- nodeLogLike(curr_part_res = curr_part_res,
                            index_node = p_node$train_index,
-                           data = data,
-                           ancestors = p_node$j)
+                           j_ = node_index_var,
+                           data = data)
 
 
   p_left_loglike <-  nodeLogLike(curr_part_res = curr_part_res,
-                                 index_node = children_left_index,
-                                 ancestors = p_node$j,
+                                 index_node =  children_left_index,
+                                 j_ = node_index_var,
                                  data = data)
 
   p_right_loglike <-  nodeLogLike(curr_part_res = curr_part_res,
                                   index_node = children_right_index,
-                                  ancestors = p_node$j,
+                                  j_ = node_index_var,
                                   data = data)
 
   # Calculating the prior
@@ -460,6 +535,76 @@ prune <- function(tree,
 
 }
 
+# Pruning a tree
+prune_interaction <- function(tree,
+                  curr_part_res,
+                  data){
+
+
+  # Getting the maximum index number
+  max_index <- get_max_node(tree)
+
+  # Sampling a terminal node
+  terminal_nodes <- get_terminals(tree)
+  n_t_nodes <- length(terminal_nodes)
+
+  t_with_inter <- names(sapply(terminal_nodes,function(node){!is.null(tree[[node]]$inter)}))
+  # Selecting a node to be pruned
+  p_node_name <- sample(t_with_inter,size = 1)
+  p_node <- tree[[p_node_name]]
+
+
+  # Calculating loglikelihood for the grown node, the left and the right node
+  if(!is.null(p_node$inter)){
+    node_index_var <- c(p_node$j,which( names(data$basis_subindex) %in% paste0(p_node$j,sort(p_node$inter))))
+    inter_index_ <-
+
+      # Sampling the new interactions subset
+      if(length(inter_index_)==1){
+        p_inter_index <- p_node$inter
+        new_p_inter <- NULL
+        new_node_index_var <- p_node$j
+        # new_node_index_var <- c(p_node$j,which( names(data$basis_subindex) %in% paste0(p_node$j,sort(new_p_inter))))
+
+      } else  {
+        new_p_inter <- sort(sample(p_node$inter,size = length(p_node$inter)-1,replace = FALSE))
+        new_node_index_var <- c(p_node$j,which( names(data$basis_subindex) %in% paste0(p_node$j,sort(new_p_inter)))) #
+      }
+
+  } else {
+    stop('Prune interaction was called where there is no interaction')
+  }
+
+  p_loglike <- nodeLogLike(curr_part_res = curr_part_res,
+                           j_ = node_index_var,
+                           index_node = p_node$train_index,
+                           data = data)
+
+
+  new_p_loglike <-  nodeLogLike(curr_part_res = curr_part_res,
+                                 j_ = new_node_index_var,
+                                 index_node = p_node$train_index,
+                                 data = data)
+
+
+  # Calculating the acceptance probability
+  acceptance <- exp(-p_loglike+new_p_loglike)
+
+  # Getting the training the left and the right index for the the grown node
+  if(stats::runif(n = 1)<acceptance){
+
+    # Erasing the terminal nodes
+   tree[[p_node_name]]$inter <- new_p_inter
+
+  } else {
+    # Do nothing
+  }
+
+  # Return the new tree
+  return(tree)
+
+}
+
 change_stump <- function(tree = tree,
              curr_part_res = curr_part_res,
              data = data){
@@ -483,13 +628,24 @@ change_stump <- function(tree = tree,
   new_ancestor <- sample(change_candidates,size = 1)
 
 
+  stump_loglikelihood <- nodeLogLike(curr_part_res = curr_part_res,
+                                     j_ = c_node$j,
+                                     index_node = c_node$train_index,
+                                     data = data)
+
   new_stump_loglikelihood <- nodeLogLike(curr_part_res = curr_part_res,
-                           ancestors = new_ancestor,
+                           j_ = new_ancestor,
                            index_node = c_node$train_index,
                            data = data)
 
-  # Modifying the node0
-  tree$node0$j <- new_ancestor
+  acceptance <- exp(-stump_loglikelihood+new_stump_loglikelihood)
+
+  # Update the stump in case of changing the main var
+  if(stats::runif(n = 1)<acceptance){
+    # Modifying the node0
+    tree$node0$j <- new_ancestor
+  }
+
 
   # Returning the new tree
   return(tree)
@@ -581,6 +737,8 @@ change <- function(tree,
   if( (length(left_index)<2) || (length(right_index) < 2)) {
     stop("Error of invalid terminal node")
   }
+
+
   # Calculating loglikelihood for the new changed nodes and the old ones
   c_loglike_left <- nodeLogLike(curr_part_res = curr_part_res,
                                 index_node = tree[[c_node$left]]$train_index,
@@ -673,14 +831,21 @@ updateBetas <- function(tree,
 
     # Select the current terminal node
     cu_t <- tree[[t_nodes_names[i]]]
-    cu_t$ancestors <- cu_t$j
+    # THIS LINE IS COMPLETELY IMPORTANT BECAUSE DEFINE THE ANCESTEORS BY j only
+
+    if(!is.null(cu_t$inter)){
+      node_index_var <- c(cu_t$j,which( names(data$basis_subindex) %in% paste0(cu_t$j,sort(cu_t$inter))))
+    } else {
+      node_index_var <- cu_t$j
+    }
+
     res_leaf <- matrix(curr_part_res[cu_t$train_index], ncol=1)
 
     # Creatinga  vector of zeros for betas_vec
     tree[[t_nodes_names[[i]]]]$betas_vec <- rep(0,ncol(data$D_train))
 
     # Selecting the actually parameters subsetting
-    leaf_basis_subindex <- unlist(data$basis_subindex[unique(cu_t$ancestors)]) # Recall to the unique() here too
+    leaf_basis_subindex <- unlist(data$basis_subindex[unique(node_index_var)]) # Recall to the unique() here too
     basis_dim <- length(leaf_basis_subindex)
     D_leaf <- data$D_train[cu_t$train_index,leaf_basis_subindex, drop = FALSE]
     n_leaf <- length(cu_t$train_index)
@@ -692,9 +857,9 @@ updateBetas <- function(tree,
     b_ <- crossprod(D_leaf,res_leaf)
     data_tau_beta_diag <- rep(data$tau_beta, NCOL(D_leaf))
     U_ <- data$P[leaf_basis_subindex,leaf_basis_subindex, drop = FALSE]
-    for(k in 1:length(unique(cu_t$ancestors))){
+    for(k in 1:length(unique(node_index_var))){
       aux_P_indexes <- unlist(data$basis_subindex[k])
-      U_[aux_P_indexes,aux_P_indexes] <- U_[aux_P_indexes,aux_P_indexes]*(data$tau_beta[cu_t$ancestors[k]])
+      U_[aux_P_indexes,aux_P_indexes] <- U_[aux_P_indexes,aux_P_indexes]*(data$tau_beta[node_index_var[k]])
     }
     U_inv_ <- U_
     Q_ <- (crossprod(D_leaf) + data$tau^(-1)*U_inv_)
@@ -753,8 +918,9 @@ update_tau_betas_j <- function(forest,
     for(j in 1:length(t_nodes_names)){
 
       cu_t <- forest[[i]][[t_nodes_names[j]]]
-
-      for(var_  in 1:length(cu_t$ancestors)){
+      cu_t$ancestors <- cu_t$j
+      var_ <- cu_t$ancestors
+      # for(var_ in 1:cu_t$ancestors){
 
             # Getting ht leaf basis
             leaf_basis_subindex <- unlist(data$basis_subindex[var_]) # Recall to the unique() function here
@@ -765,7 +931,7 @@ update_tau_betas_j <- function(forest,
               tau_b_rate[var_] <- tau_b_rate[var_] + c(crossprod(betas_mat_,crossprod(data$P[leaf_basis_subindex,leaf_basis_subindex, drop = FALSE],betas_mat_)))
             }
 
-      }
+      # }
 
     }
 
@@ -817,7 +983,7 @@ update_tau_betas <- function(forest,
     for(j in 1:length(t_nodes_names)){
 
       cu_t <- forest[[i]][[t_nodes_names[j]]]
-      leaf_basis_subindex <- unlist(data$basis_subindex[unique(cu_t$ancestors)]) # Recall to the unique() function here
+      leaf_basis_subindex <- unlist(data$basis_subindex[unique(cu_t$j)]) # Recall to the unique() function here
 
       if(!is.null(cu_t$betas_vec)){
         tau_b_shape <- tau_b_shape + length(leaf_basis_subindex)
@@ -847,8 +1013,8 @@ getPredictions <- function(tree,
 
   # Creating the vector to hold the values of the prediction
   if(data$interaction_term){
-    y_hat <- matrix(0, nrow = nrow(data$x_train), ncol = NCOL(data$x_train)+length(data$interaction_list))
-    y_hat_test <- matrix(0,nrow(data$x_test), ncol = NCOL(data$x_test)+length(data$interaction_list))
+    y_hat <- matrix(0, nrow = nrow(data$x_train), ncol = NCOL(data$x_train)+NCOL(data$interaction_list))
+    y_hat_test <- matrix(0,nrow(data$x_test), ncol = NCOL(data$x_test)+NCOL(data$interaction_list))
   } else {
     y_hat <- matrix(0, nrow = nrow(data$x_train), ncol = ncol(data$x_train))
     y_hat_test <- matrix(0,nrow(data$x_test), ncol = ncol(data$x_test))
@@ -860,10 +1026,20 @@ getPredictions <- function(tree,
 
   for(i in 1:n_t_nodes){
 
-    leaf_train_index <- tree[[t_nodes[i]]]$train_index
-    leaf_test_index <- tree[[t_nodes[i]]]$test_index
+
+    # Getting the current terminal node
+    cu_t <- tree[[t_nodes[[i]]]]
+    leaf_train_index <- cu_t$train_index
+    leaf_test_index <- cu_t$test_index
     # leaf_ancestors <- unique(tree[[t_nodes[[i]]]]$ancestors) # recall the unique() argument here
-    leaf_ancestors <- unique(tree[[t_nodes[[i]]]]$j) # recall the unique() argument here
+
+    if(!is.null(cu_t$inter)){
+      node_index_var <- c(cu_t$j,which( names(data$basis_subindex) %in% paste0(cu_t$j,sort(cu_t$inter))))
+    } else {
+      node_index_var <- cu_t$j
+    }
+
+    leaf_ancestors <- node_index_var # here isnt really the ancestors, but the variables that are being used
 
     leaf_basis_subindex <- data$basis_subindex[leaf_ancestors]
 

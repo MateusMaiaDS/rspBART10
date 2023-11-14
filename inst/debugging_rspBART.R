@@ -5,17 +5,17 @@ seed_ <- 42
 set.seed(42)
 n_ <- 250
 sd_ <- 1
-# sim_train <- mlbench.friedman1.nointeraction(n = n_,sd = sd_)  |> as.data.frame()
-# sim_test <- mlbench.friedman1.nointeraction(n = n_,sd = sd_)  |> as.data.frame()
-#
+sim_train <- mlbench.friedman1.nointeraction(n = n_,sd = sd_)  |> as.data.frame()
+sim_test <- mlbench.friedman1.nointeraction(n = n_,sd = sd_)  |> as.data.frame()
+
 # sim_train <- mlbench.friedman1.nointeraction.noise(n = n_,sd = sd_)  |> as.data.frame() %>% .[,c(1:4,9)]
 # sim_test <- mlbench.friedman1.nointeraction.noise(n = n_,sd = sd_)  |> as.data.frame() %>% .[,c(1:4,9)]
 
 # sim_train <- mlbench.friedman1(n = n_,sd = sd_)  |> as.data.frame()
 # sim_test <- mlbench.friedman1(n = n_,sd = sd_)  |> as.data.frame()
 
-sim_train <- mlbench.d1.break(n = n_,sd = 1)  |> as.data.frame()
-sim_test <- mlbench.d1.break(n = n_,sd = 1) |> as.data.frame()
+# sim_train <- mlbench.d1.break(n = n_,sd = 1)  |> as.data.frame()
+# sim_test <- mlbench.d1.break(n = n_,sd = 1) |> as.data.frame()
 
 # sim_train <- mlbench.d1(n = n_,sd = 1)  |> as.data.frame()
 # sim_test <- mlbench.d1(n = n_,sd = 1) |> as.data.frame()
@@ -36,13 +36,13 @@ n_tree <- 10
 node_min_size = 2
 n_mcmc = 3000
 n_burn = 500
-alpha = 0.1
+alpha = 0.95
 beta = 2
 df = 3
 sigquant = 0.9
 kappa = 2
 tau = 1
-scale_bool = FALSE
+scale_bool = TRUE
 stump = FALSE
 no_rotation_bool = FALSE
 numcut = 100L # Defining the grid of split rules
@@ -51,15 +51,14 @@ delta <- 1
 
 # Splines parameters
 nIknots = 2
-dif_order = 0
+dif_order = 1
 motrbart_bool <- FALSE
 use_bs <- FALSE
-plot_preview = TRUE
+plot_preview = FALSE
 intercept <- FALSE
-all_var <- FALSE
+all_var <- TRUE
 scale_init <- TRUE
 update_tau_beta <- FALSE
-stump <- FALSE
 main_effects_pred <- TRUE
 # interaction_list_ <- interaction_list <- list(c(1,2))
 interaction_list <- NULL
