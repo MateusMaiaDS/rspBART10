@@ -36,7 +36,7 @@ n_tree <- 10
 node_min_size = 2
 n_mcmc = 3000
 n_burn = 500
-alpha = 0.95
+alpha = 0.5
 beta = 2
 df = 3
 sigquant = 0.9
@@ -63,7 +63,7 @@ main_effects_pred <- TRUE
 # interaction_list_ <- interaction_list <- list(c(1,2))
 interaction_list <- NULL
 
-interaction_term <- FALSE
+interaction_term <- TRUE
 cv_object_ <- kfold(data_ = sim_train,nfold_ = 10,seed_ = 42)
 fold_ <- 1
 cv_object_fold_ <- cv_object_[[fold_]]

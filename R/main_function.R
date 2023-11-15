@@ -40,10 +40,10 @@ rspBART <- function(x_train,
 ) {
 
 
-  # Another constrain
-  if(interaction_term & is.null(interaction_list)){
-    stop("Define the interaction list.")
-  }
+  # # Another constrain
+  # if(interaction_term & is.null(interaction_list)){
+  #   stop("Define the interaction list.")
+  # }
 
   if(isFALSE(interaction_term) & !is.null(interaction_list)){
     stop("Is a model without the interaction but a interaction list is defined")
@@ -414,7 +414,7 @@ rspBART <- function(x_train,
       if(interaction_term){
 
         # Interacting
-        main_effects_train_list <- main_effects_test_list <- vector("list", length = length(dummy_x$continuousVars)+length(interaction_list))
+        main_effects_train_list <- main_effects_test_list <- vector("list", length = length(dummy_x$continuousVars)+NCOL(interaction_list))
 
         for(list_size in 1:length(main_effects_train_list)){
           main_effects_train_list[[list_size]] <- matrix(0,nrow = n_mcmc,ncol = nrow(x_train))
@@ -423,7 +423,7 @@ rspBART <- function(x_train,
 
         # Renaming the main list
         if(interaction_term){
-          internames_ <- lapply(interaction_list,function(vars_){paste0("x",paste0(vars_,collapse = ":"))})
+          internames_ <- apply(interaction_list,2,function(vars_){paste0("x",paste0(vars_,collapse = ":"))})
           names(main_effects_train_list) <- names(main_effects_test_list) <- c(dummy_x$continuousVars, internames_)
         } else {
           names(main_effects_train_list) <- names(main_effects_test_list) <-dummy_x$continuousVars
@@ -593,7 +593,7 @@ rspBART <- function(x_train,
 
       # Sample a verb
       verb <- sample(c("grow","prune", "change"), prob = c(0.3,0.3,0.4),size = 1)
-      verb <- sample(c("grow","prune"),size = 1)
+      # verb <- sample(c("grow","prune"),size = 1)
 
       # # Forcing to grow when only have a stump
       # if(length(forest[[t]])==1){
@@ -607,17 +607,36 @@ rspBART <- function(x_train,
 
       # Sampling a verb
       if(verb == "grow"){
-        forest[[t]] <- grow(tree = forest[[t]],
-                            curr_part_res = partial_residuals,
-                            data = data)
-      } else if (verb == "prune"){
-        forest[[t]] <- prune(tree = forest[[t]],
-                             curr_part_res = partial_residuals,
-                             data = data)
-      } else if (verb == "change"){
-        forest[[t]] <- change(tree = forest[[t]],
+        if(stats::runif(n = 1)<0.5){
+          forest[[t]] <- grow(tree = forest[[t]],
                               curr_part_res = partial_residuals,
                               data = data)
+        } else {
+          forest[[t]] <- add_interaction(tree = forest[[t]],
+                              curr_part_res = partial_residuals,
+                              data = data)
+        }
+      } else if (verb == "prune"){
+
+        if(stats::runif(n = 1)<0.5){
+          forest[[t]] <- prune(tree = forest[[t]],
+                               curr_part_res = partial_residuals,
+                               data = data)
+        } else {
+          forest[[t]] <- prune_interaction(tree = forest[[t]],
+                               curr_part_res = partial_residuals,
+                               data = data)
+        }
+      } else if (verb == "change"){
+        if(stats::runif(n = 1)<0.5){
+          forest[[t]] <- change(tree = forest[[t]],
+                                curr_part_res = partial_residuals,
+                                data = data)
+        } else {
+          forest[[t]] <- change_interaction(tree = forest[[t]],
+                                curr_part_res = partial_residuals,
+                                data = data)
+        }
       }
 
       # cat("Forest size:", (length(forest)),"\n")
@@ -671,8 +690,8 @@ rspBART <- function(x_train,
 
     # Visualizing some plots
     if(plot_preview){
-      par(mfrow = c(2,floor(length(main_effects_train_list)/2)))
-      for(jj in 1:length(main_effects_train_list)){
+      par(mfrow = c(2,floor(NCOL(data$x_train)/2)))
+      for(jj in 1:NCOL(data$x_train)){
       plot(x_train[,jj],colMeans(main_effects_train_list[[jj]][1:i,, drop = FALSE]),main = paste0('X',jj),
            ylab = paste0('G(X',jj,')'))
       }
@@ -733,7 +752,7 @@ rspBART <- function(x_train,
   }
 
 
-  # Normalising elements
+   # Normalising elements
   all_tau_norm <- numeric(n_mcmc)
 
   if(interaction_term){
