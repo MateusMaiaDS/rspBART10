@@ -53,6 +53,7 @@ P_gen <- function(D_train_, dif_order_,eta){
     P_train_[middle_,middle_] = P_train_[middle_,middle_] + eta
 
   } else if(dif_order_==0){
+    P_train_ <- diag(nrow = NCOL(D_train_))
   } else {
     stop("Insert a lower order for the difference matrix")
 

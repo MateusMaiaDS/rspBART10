@@ -204,7 +204,9 @@ rspBART <- function(x_train,
       B_train_obj[[i]] <- splines::bs(x = x_train_scale[,dummy_x$continuousVars[i], drop = FALSE],
                                  df = nIknots+3,
                                  degree = 3,intercept = FALSE,
-                                 Boundary.knots = c(-2,2)*range(x_train_scale[,dummy_x$continuousVars[i]]),warn.outside = TRUE)
+                                 Boundary.knots = c(-2,2)*range(x_train_scale[,dummy_x$continuousVars[i]]))
+
+      B_train_obj[[i]] <- splines::bs(x = x_train_scale[,dummy_x$continuousVars[i], drop = FALSE])
     } else {
       B_train_obj[[i]] <- splines::spline.des(x = x_train_scale[,dummy_x$continuousVars[i], drop = FALSE],
                                          knots = new_knots[,dummy_x$continuousVars[i]],
@@ -311,9 +313,9 @@ rspBART <- function(x_train,
     m_tilda <- mean(diag(tcrossprod(D_train)))
     # Maybe need to change that in the future
 
-    # tau_mu <- 4*n_tree*(kappa^2)
+    tau_mu <- 4*n_tree*(kappa^2)
     # tau_mu <- 4*n_tree*(kappa^2)*(m_tilda)*(nIknots-1)
-    tau_mu <- 4*n_tree*(kappa^2)*(m_tilda)
+    # tau_mu <- 4*n_tree*(kappa^2)*(m_tilda)
 
 
 
@@ -325,10 +327,8 @@ rspBART <- function(x_train,
     m_tilda <- mean(diag(tcrossprod(D_train)))
     tau_mu <- (4*n_tree*(kappa^2))/((max_y-min_y)^2)
     # tau_mu <- (4*n_tree*(kappa^2)*(m_tilda)*(nIknots-1))/((max_y-min_y)^2)
-    # tau_mu <- (4*n_tree*(kappa^2)*(m_tilda))/((max_y-min_y)^2)
-    tau_mu <- (4*n_tree*(kappa^2))/((max_y-min_y)^2)
-
-
+    tau_mu <- (4*n_tree*(kappa^2)*(m_tilda))/((max_y-min_y)^2)
+    # tau_mu <- (4*n_tree*(kappa^2))/((max_y-min_y)^2)
 
   }
 
@@ -380,10 +380,17 @@ rspBART <- function(x_train,
   all_betas <- vector("list",n_mcmc)
   if(interaction_term){
     tau_beta <- rep(tau_mu,NCOL(x_train_scale)+length(interaction_list))
+    tau_beta <- rep(tau_mu, NCOL(x_train_scale))
   } else {
     tau_beta <- rep(tau_mu,NCOL(x_train_scale))
   }
 
+  p_var_ <- 10
+  solve(crossprod(B_train_obj[[p_var_]] %>% as.matrix),crossprod(B_train_obj[[p_var_]] %>% as.matrix,y_scale))
+
+  all_df <- cbind(x_train,y_train)
+  mod <- mgcv::gam(y_train ~ bs(x.10), data = all_df)
+  mod$coefficients
 
   # In this first scenario we are going to work with a single value of \tau
   if(interaction_term){
@@ -488,11 +495,16 @@ rspBART <- function(x_train,
   all_P <- replicate(NCOL(x_train_scale),
                      P_gen(D_train_ = B_train_obj[[1]],dif_order_ = dif_order,
                            eta = 1),simplify = FALSE)
+
   if(interaction_term){
     # Adding the penalty term for the interactions
     all_P_aux <- vector('list',NCOL(interaction_list))
     for( ii in 1:NCOL(interaction_list)){
+      if(dif_order!=0){
         all_P_aux[[ii]] <- kronecker(all_P[[interaction_list[1,ii]]],all_P[[interaction_list[2,ii]]])
+      } else {
+        all_P_aux[[ii]] <- diag(nrow = NCOL(all_P[[1]])^2)
+      }
         # all_P_aux <- append(all_P_aux,all_P_aux)
     }
 
@@ -525,7 +537,7 @@ rspBART <- function(x_train,
                all_var_splits = all_var_splits,
                n_tree = n_tree,
                tau_mu = tau_mu,
-               tau = tau,
+               tau = nsigma^(-2)*0.1,
                a_tau = a_tau,
                d_tau = d_tau,
                tau_beta = tau_beta,
@@ -593,7 +605,11 @@ rspBART <- function(x_train,
 
       # Sample a verb
       verb <- sample(c("grow","prune", "change"), prob = c(0.3,0.3,0.4),size = 1)
-      # verb <- sample(c("grow","prune"),size = 1)
+      verb <- sample(c("grow","prune"),size = 1)
+
+      if(i<500){
+        verb <- "change"
+      }
 
       # # Forcing to grow when only have a stump
       # if(length(forest[[t]])==1){
@@ -867,7 +883,7 @@ rspBART <- function(x_train,
                           D_test = D_test,
                           basis_subindex = basis_subindex)))
 
- }
+  }
 
 
 

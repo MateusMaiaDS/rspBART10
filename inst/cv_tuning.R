@@ -13,7 +13,7 @@ n_ <- 250
 sd_ <- 1
 n_rep_ <- 10
 nIknots_ <- 2
-ntree_ <- 5
+ntree_ <- 10
 dif_order_ <- 1
 use_bs_ <- FALSE
 seed_ <- 42
@@ -23,12 +23,12 @@ alpha_ <- 0.5
 stump_ <- FALSE
 scale_init_ <- TRUE
 update_tau_beta_ <- FALSE
-inter_ <- FALSE
+inter_ <- TRUE
 # Selecting a simulated scenarion
 # (1): "oned_break" one dimensionnal sin(2*x) with a break
 # (2): "friedman_nointer_nonoise": four-dimensional friedmna setting with no interaction terms and no extra X noise variables
 # (3): "interaction
-type_ <- c("friedman_nointer_nonoise")
+type_ <- c("friedman_inter_noise")
 
 # type_ <- c("friedman_inter_noise")
 
@@ -98,7 +98,7 @@ result <- foreach(i = 1:n_rep_, .packages = c("dbarts","SoftBart","MOTRbart","dp
   #                   use_bs_ = use_bs_,motr_bart_ = motr_bart_,rsp_bart_all_ = all_,
   #                   alpha_ = alpha_,stump = stump_)
   # } else {
-    aux <- all_bart_lite(cv_element = cv_[[i]],
+    aux <- all_bart_lite_interaction(cv_element = cv_[[i]],
                          nIknots_ = nIknots_,ntree_ = ntree_,seed_ = seed_,
                          use_bs_ = use_bs_,alpha_ = alpha_,rsp_bart_all_ = all_,
                          j = i,motr_bart_ = motr_bart_, stump = stump_,dif_order_ = dif_order_,
