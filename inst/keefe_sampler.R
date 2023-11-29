@@ -1,5 +1,6 @@
 rm(list=ls())
 set.seed(42)
+library(purrr)
 # Generating a simple simulation scenario
 beta1 <- 10
 beta2 <- 2
@@ -9,6 +10,7 @@ p <- 3
 x <- matrix(runif(p*n),ncol = p)
 # y <- beta1*x[,1] + beta2*x[,2]rnorm(n = n)
 y <- beta1*x[,1] + rnorm(n = n)
+y <- y/10
 
 
 # Creating a sampler
@@ -105,12 +107,11 @@ for(ii in 1:length(selected_vars)){
 
 }
 
-for(jj in 1:length(tau_beta_j)){
-  a_shape <- 0.5 + a_tau_beta_j_prior[jj]
-  d_rate <- 0.5*betas[mcmc_iter,jj]^2 + d_tau_beta_j_prior[jj]
-  tau_beta_j[jj] <- stats::rgamma(n = 1,shape = a_shape,rate = d_rate)
-
-}
+# for(jj in 1:length(tau_beta_j)){
+#   a_shape <- 0.5 + a_tau_beta_j_prior[jj]
+#   d_rate <- 0.5*betas[mcmc_iter,jj]^2 + d_tau_beta_j_prior[jj]
+#   tau_beta_j[jj] <- stats::rgamma(n = 1,shape = a_shape,rate = d_rate)
+# }
 
 tau_beta_j_post[mcmc_iter,] <- tau_beta_j
 cat("Iteration number", mcmc_iter,"\n")
